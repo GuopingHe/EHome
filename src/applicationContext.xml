@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+         http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+         http://www.springframework.org/schema/context
+         http://www.springframework.org/schema/context/spring-context-4.0.xsd
+         http://www.springframework.org/schema/aop
+         http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+         http://www.springframework.org/schema/tx 
+         http://www.springframework.org/schema/tx/spring-tx-4.0.xsd">
+
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+		destroy-method="close">
+		<!-- 
+		<property name="driverClassName" value="oracle.jdbc.driver.OracleDriver" />
+		<property name="url" value="jdbc:oracle:thin:@localhost:1521/orcl" />
+		<property name="username" value="hgp_test" />
+		<property name="password" value="123456" /> -->
+		<property name="driverClassName" value="com.mysql.jdbc.Driver" />
+		<property name="url" value="jdbc:mysql://localhost/ehome" />
+		<property name="username" value="root" />
+		<property name="password" value="hgp" />
+		
+		<!-- 配置连接池的初始值 -->
+		<property name="initialSize" value="1" />
+		<!-- 连接池的最大值 -->
+		<!-- <property name="maxActive" value="500"/> -->
+		<!-- 最大空闲时，当经过一个高峰之后，连接池可以将一些用不到的连接释放，一直减少到maxIdle为止 -->
+		<!-- <property name="maxIdle" value="2"/> -->
+		<!-- 当最小空闲时，当连接少于minIdle时会自动去申请一些连接 -->
+		<property name="minIdle" value="1" />
+		<property name="maxActive" value="100" />
+		<property name="maxIdle" value="20" />
+		<property name="maxWait" value="1000" />
+	</bean>
+
+	<!-- 导入Src目录下的jdbc.properties文件 -->
+	<!-- <context:property-placeholder location="classpath:jdbc.properties" 
+		/> -->
+
+	<!--创建Spring的SessionFactory工厂 -->
+	<!-- 如果使用的是Annotation的方式，不能使用LocalSessionFactoryBean,而应该使用 org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean -->
+	<bean id="sessionFactory"
+		class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<!-- 注入数据源 -->
+		<property name="dataSource" ref="dataSource" />
+		<!-- 设置Spring取那个包中查找相应的实体类 -->
+		<property name="packagesToScan">
+			<value>com.top.*.model</value>
+		</property>
+		<property name="hibernateProperties">
+			<!-- <value> hibernate.dialect=org.hibernate.dialect.HSQLDialect </value> -->
+			<props>
+<!-- 				<prop key="hibernate.dialect">org.hibernate.dialect.OracleDialect</prop> -->
+<!-- 				<prop key="hibernate.dialect">org.hibernate.dialect.MySQLInnoDBDialect</prop> -->
+				<prop key="hibernate.dialect">org.hibernate.dialect.MySQL5InnoDBDialect</prop>
+				<prop key="hibernate.show_sql">true</prop>
+				<!-- hibernate 自动建表设置 -->
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+				<prop key="hibernate.format_sql">false</prop>
+				<!-- <prop key="hibernate.current_session_context_class">thread</prop> 
+					<prop key="hibernate.current_session_context_class">jta</prop> -->
+			</props>
+		</property>
+	</bean>
+
+	<!-- 配置Spring的事务处理 -->
+
+	<!-- 创建事务管理器 -->
+	<bean id="transactionManager"
+		class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+	<!-- 配置哪些方法要加入事务控制 -->
+	<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+			<!-- 让所有的方法都加入事务管理，为了提高效率，可以把一些查询之类的方法设置为只读的事务 -->
+			<tx:method name="*" propagation="REQUIRED" read-only="true" />
+			<!-- 以下方法都是可能设计修改的方法，就无法设置为只读 -->
+			<tx:method name="add*" propagation="REQUIRED" />
+			<tx:method name="del*" propagation="REQUIRED" />
+			<tx:method name="update*" propagation="REQUIRED" />
+			<tx:method name="save*" propagation="REQUIRED" />
+		</tx:attributes>
+	</tx:advice>
+
+	<!-- 配置AOP，Spring是通过AOP来进行事务管理的 -->
+	<aop:config>
+		<!-- 设置pointCut表示哪些方法要加入事务处理 -->
+		<aop:pointcut id="allMethods" expression="execution(* com.top.*.service.*.*(..))" />
+		<!-- 通过advisor来确定具体要加入事务控制的方法 -->
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="allMethods" />
+	</aop:config>
+
+	<!-- 打开Spring的Annotation支持 -->
+	<context:annotation-config />
+
+	<!-- 设定Spring 去哪些包中找Annotation -->
+	<context:component-scan base-package="com.top">
+		<!-- 通过exclude-filter 把所有 @Controller注解的表现层控制器组件排除 -->
+		<context:exclude-filter type="annotation"
+			expression="org.springframework.stereotype.Controller" />
+	</context:component-scan>
+
+	<tx:annotation-driven transaction-manager="transactionManager" />
+	<!--<aop:aspectj-autoproxy proxy-target-class="true"/> -->
+
+</beans>
